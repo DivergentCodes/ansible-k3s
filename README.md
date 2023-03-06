@@ -1,2 +1,3 @@
-# template-repo
-Template repository with standard files and settings
+# Ansible K3s
+
+Baremetal Kubernetes cluster (k3s) creation via Ansible.
