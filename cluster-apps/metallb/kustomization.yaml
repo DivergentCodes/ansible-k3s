@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: metallb-system
+
+bases:
+  # This base does not work without removing the `vars:` key.
+  # Gives this Kustomize error:
+  #   I1001 00:11:33.227475 2120374 log.go:198] well-defined vars that were never replaced: SERVICE_NAME,SERVICE_NAMESPACE
+  # - https://github.com/metallb/metallb/config/native?ref=v0.13.5
+
+  # No way to remove the upstream `vars:` key from here, so directly importing resources.
+  # Upstream subpaths included in the original upstream kustomize.yaml file.
+  - https://github.com/metallb/metallb/config/crd?ref=v0.13.5
+  - https://github.com/metallb/metallb/config/rbac?ref=v0.13.5
+  - https://github.com/metallb/metallb/config/controllers?ref=v0.13.5
+  - https://github.com/metallb/metallb/config/webhook?ref=v0.13.5
+
+resources:
+  # ns.yaml defined here becuase "bases" does not allow individual files.
+  - https://raw.githubusercontent.com/metallb/metallb/v0.13.5/config/native/ns.yaml

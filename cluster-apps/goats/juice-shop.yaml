@@ -1,0 +1,63 @@
+# OWASP juice shop vulnerable app in the goats namespace.
+# https://github.com/juice-shop/juice-shop
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: juice-shop
+  namespace: goats
+  labels:
+    app: juice-shop
+spec:
+  selector:
+    matchLabels:
+      app: juice-shop
+  template:
+    metadata:
+      labels:
+        app: juice-shop
+    spec:
+      containers:
+      - name: juice-shop
+        image: bkimminich/juice-shop
+        ports:
+        - name: http
+          containerPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: juice-shop
+  namespace: goats
+  labels:
+    app: juice-shop
+spec:
+  ports:
+  - protocol: TCP
+    port: 3000
+    targetPort: 3000
+  selector:
+    app: juice-shop
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: juice-shop
+  namespace: goats
+spec:
+  # The <namespace>/<name> of the gateway(s) to use.
+  # Allows using a centralized gateway, without requiring control over it.
+  gateways:
+  - istio-ingress/cluster-ingress-gateway
+  # The public domain to reach this service.
+  hosts:
+  - "juice-shop.cluster.divergent.codes"
+  http:
+  - match:
+    # Every path for this domain will be routed to the service.
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: juice-shop
+        port:
+          number: 3000

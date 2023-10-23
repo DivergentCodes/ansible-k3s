@@ -1,0 +1,55 @@
+# Remote Helm chart for Cert Manager
+#
+# https://github.com/cert-manager/cert-manager/issues/3174
+#   Helm ArgoCD does not install cert-manager CRDs when specifying installCRDs: true
+#
+# https://github.com/argoproj/argo-cd/issues/4091#issuecomment-675340161
+#   Helm ArgoCD does not take into account values cert-manager
+#
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager-helm-chart
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+spec:
+  project: default
+  source:
+    repoURL: https://charts.jetstack.io
+    chart: cert-manager
+    targetRevision: 1.9.1
+    helm:
+      releaseName: cert-manager
+      parameters:
+        - name: "installCRDs"
+          value: "true"
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: cert-manager
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+    automated:
+      prune: true
+---
+# Resources for cert-manager.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: "git@github.com:DivergentCodes/ansible-k3s"
+    targetRevision: main
+    path: cluster-apps/cert-manager
+  destination:
+    server: "https://kubernetes.default.svc"
+    namespace: cert-manager
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+    automated:
+      prune: true

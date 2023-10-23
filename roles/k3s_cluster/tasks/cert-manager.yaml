@@ -1,0 +1,126 @@
+
+- name: "Get the full domain for the cluster host from SSM"
+  set_fact:
+    cluster_full_domain: "{{ lookup('aws_ssm', '/k3s/dns/cluster_full_domain') }}"
+  tags:
+    - certmanager
+
+
+- name: "Get or create the AWS Route53 public hosted zone for {{ cluster_full_domain }}"
+  community.aws.route53_zone:
+    zone: "{{ cluster_full_domain }}"
+    comment: "k3s cluster hosted zone"
+    tags:
+      project: ansible-k3s
+  register: aws_hosted_zone
+  tags:
+    - certmanager
+
+
+- name: "Create a TXT record in the Route53 hosted zone to test subdomain resolution."
+  community.aws.route53:
+    zone: "{{ cluster_full_domain }}"
+    record: "resolution-test.{{ cluster_full_domain }}"
+    type: TXT
+    ttl: 300
+    value: '"resolution-test-value"'
+    state: present
+  tags:
+    - certmanager
+
+
+- name: "Wait for the TXT test value to resolve."
+  community.dns.wait_for_txt:
+    records:
+      - name: "resolution-test.{{ cluster_full_domain }}"
+        values: "resolution-test-value"
+        mode: equals
+  tags:
+    - certmanager
+
+
+- name: "Create AWS IAM policy to manage Route53 hosted zone"
+  community.aws.iam_managed_policy:
+    policy_name: "k3s-certmanager-manage-route53"
+    policy_description: "Used by CertManager to solve ACME DNS-01 in Route53 hosted zone"
+    policy: |
+      {
+          "Version": "2012-10-17",
+          "Statement": [
+              {
+                  "Effect": "Allow",
+                  "Action": [
+                      "route53:GetChange",
+                      "route53:ListHostedZonesByName"
+                  ],
+                  "Resource": [
+                      "*"
+                  ]
+              },
+              {
+                  "Effect": "Allow",
+                  "Action": [
+                      "route53:ChangeResourceRecordSets"
+                  ],
+                  "Resource": [
+                      "arn:aws:route53:::hostedzone/{{ aws_hosted_zone.zone_id }}"
+                  ]
+              }
+          ]
+      }
+    state: present
+  register: aws_iam_policy
+  tags:
+    - certmanager
+
+
+- name: "Create AWS user for CertManager to solve ACME DNS-01"
+  community.aws.iam_user:
+    name: "k3s-cert-manager-route53"
+    managed_policies:
+      - "{{ aws_iam_policy['policy']['arn'] }}"
+    state: present
+    tags:
+      project: ansible-k3s
+  register: aws_iam_user
+  tags:
+    - certmanager
+
+
+- name: "Fetch AWS access keys for CertManager"
+  community.aws.iam_access_key_info:
+    user_name: "k3s-cert-manager-route53"
+  register: aws_iam_user_existing_keys
+  tags:
+    - certmanager
+
+
+- name: "Create a new access key for CertManager"
+  community.aws.iam_access_key:
+    user_name: "k3s-cert-manager-route53"
+    state: present
+  register: aws_iam_user_new_key
+  when: (aws_iam_user_existing_keys['access_keys'] | length) == 0
+  tags:
+    - certmanager
+
+
+- name: "Apply manifest for cert-manager namespace"
+  kubernetes.core.k8s:
+    kubeconfig: "{{ lookup('env','HOME') }}/.kube/config"
+    template: "../templates/cert-manager-namespace.yaml.j2"
+    state: present
+  tags:
+    - certmanager
+
+
+- name: "Apply manifest for CertManager AWS IAM user credentials"
+  kubernetes.core.k8s:
+    kubeconfig: "{{ lookup('env','HOME') }}/.kube/config"
+    template: "../templates/cert-manager-aws-credentials.yaml.j2"
+    state: present
+  register: cert_manager_aws_credentials
+  when: (aws_iam_user_existing_keys['access_keys'] | length) == 0
+  tags:
+    - certmanager
+

@@ -1,0 +1,85 @@
+all:
+
+  vars:
+
+    k3s:
+
+      external_secrets:
+        secret_source: "aws_ssm"
+        base_path: "k3s"
+
+      argocd_bootstrap:
+        git:
+          deploy_ssh_key_source: "aws_ssm"
+          deploy_ssh_key_path: "/k3s/argocd/git_deploy_ssh_private_key"
+          repo_remote: "git@github.com:DivergentCodes/ansible-k3s"
+
+      metallb:
+        # The predictable "floating" IP of the cluster's LB on the VM subnet.
+        default_address_pool:
+          ipv4: 192.168.122.240
+
+      # This should match virtual_machines values below.
+      master:
+        hostname: k3s-node1
+        ipv4: 192.168.122.211
+
+
+  hosts:
+
+    vm_host_server:
+      ansible_host: 10.163.181.194
+      ansible_user: ubuntu
+
+      users:
+      - name: ubuntu
+        # Include same public key used to access hypervisor host.
+        public_keys:
+          - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC9hvQndkIFhw35E3DqRSRs0ZSrkAlyk5rQZXOz/37RH5kCKr6CSSY9KPC+yMq5BhtzwtKUkZgc6M7tcP1kdobMtAewifsREXvusYRuTASj9dBGX7ByNGUMlCrrKcTZTpOz+z2YxplnvMPIvL/7CIYC6rE//KXQT3Xvjit0jP9i/XSpkNGMO7tDhD9rIhUuIgECKq2OY1yOtBAmCdRVvLKyMSQt9dvjqwKisrySDQRKYMM9rs6hxvBVe6flqHsDG7BMuHONBAxBecstvqSxDSyHwXF54GrrCc8cqpnIvCfXYYaOtnLoutGCmvjlnvgMjCNUTokRYSzAbvedUAMoIZGiDfql0INOSB6gdQRguH/mVyspp2a1e08cTSHh6ihlnLSFjAmgxwilbye1yGMoKrqnk0Pzp4jYBM36UO3RTND9UEAew1bMUHTzTiwjVJDEqz7xbhZ+nbbLBFmr7Q75DDRwcQu0wSlT6VgFATzx29SC3lFBChSJ6UM0jEQ5bTOA1P6l1AJEkhQa6bML8KNGfQ1kfNYk/VlnFpMAG3j1K00ljZ5scQHyFfNurx4rxJcMyTSwAk6tqy2AuZ7xJLmkj0tYmqeJL9X8hhTqUjHWRNMpx4HZDqVM4o3yJv+tC55SJpBebFZ1wPYJo5+RSFWCZWtz5F86WU/RcmIVIbWwCzk9yQ=="
+
+      virtual_machines:
+
+      - name: k3s-node1
+        cpu: 2
+        mem: 4000
+        disk: 10
+        bridge: virbr0
+        iface: enp1s0
+        net:
+          ipv4: 192.168.122.211
+          gateway4: 192.168.122.1
+          dns:
+            - 1.1.1.1
+            - 1.0.0.1
+        packages:
+          - pwgen
+
+      - name: k3s-node2
+        cpu: 2
+        mem: 4000
+        disk: 10
+        bridge: virbr0
+        iface: enp1s0
+        net:
+          ipv4: 192.168.122.212
+          gateway4: 192.168.122.1
+          dns:
+            - 1.1.1.1
+            - 1.0.0.1
+        packages:
+          - pwgen
+
+      - name: k3s-node3
+        cpu: 2
+        mem: 4000
+        disk: 10
+        bridge: virbr0
+        iface: enp1s0
+        net:
+          ipv4: 192.168.122.213
+          gateway4: 192.168.122.1
+          dns:
+            - 1.1.1.1
+            - 1.0.0.1
+        packages:
+          - pwgen

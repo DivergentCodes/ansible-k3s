@@ -1,0 +1,15 @@
+---
+# Ansible dependencies.
+collections:
+  - name: ansible.posix
+    version: 1.4.0
+  - name: amazon.aws
+    version: 4.2.0
+  - name: community.aws
+    version: 4.2.0
+  - name: community.dns
+    version: 2.3.2
+  - name: community.libvirt
+    version: 1.2.0
+  - name: kubernetes.core
+    version: 2.3.2

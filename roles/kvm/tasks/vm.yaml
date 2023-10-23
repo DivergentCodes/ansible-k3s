@@ -1,0 +1,126 @@
+---
+
+- name: "{{ vm.name }} :: create VM storage path"
+  file:
+    state: directory
+    path: "/virt/vms/{{ vm.name }}"
+  register: vm_file_path
+
+
+############################################################
+# Create cloud-init configuration files.
+############################################################
+
+
+- name: "{{ vm.name }} :: generate cloud-init-meta-data.cfg"
+  template:
+    src: "../templates/cloud-init-meta-data.cfg.j2"
+    dest: "/virt/vms/{{ vm.name }}/cloud-init-meta-data.cfg"
+  register: cloud_init_meta_data
+
+
+- name: "{{ vm.name }} :: generate cloud-init-user-data.cfg"
+  template:
+    src: "../templates/cloud-init-user-data.cfg.j2"
+    dest: "/virt/vms/{{ vm.name }}/cloud-init-user-data.cfg"
+  register: cloud_init_user_data
+
+
+- name: "{{ vm.name }} :: generate cloud-init-network.cfg"
+  template:
+    src: "../templates/cloud-init-network.cfg.j2"
+    dest: "/virt/vms/{{ vm.name }}/cloud-init-network.cfg"
+  register: cloud_init_network
+
+
+############################################################
+# Create VM disk image.
+############################################################
+
+
+- name: "{{ vm.name }} :: check if VM disk image file exists"
+  stat:
+    path: "/virt/vms/{{ vm.name }}/{{ vm.name }}.img"
+    get_checksum: false
+  register: vm_disk
+
+
+- name: "{{ vm.name }} :: copy cloud disk image for VM instance (qemu-img)"
+  shell:
+    creates: "/virt/vms/{{ vm.name }}/{{ vm.name }}.img"
+    # -f <format>
+    # -F <backing format>
+    # -b <backing file>
+    cmd: >
+      qemu-img create \
+        -f qcow2 \
+        -F qcow2 \
+        -b "/virt/images/focal-server-cloudimg-amd64.img" \
+        "/virt/vms/{{ vm.name }}/{{ vm.name }}.img" \
+        "{{ vm.disk|default('10') }}G"
+  when: not vm_disk.stat.exists
+
+
+############################################################
+# Create VM instance.
+############################################################
+
+
+- name: "{{ vm.name }} :: check if VM instance exists"
+  community.libvirt.virt:
+    name: "{{ vm.name }}"
+    command: list_vms
+  register: vm_list
+
+
+- name: "{{ vm.name }} :: create VM from cloud-init config files (virt-install)"
+  shell:
+    cmd: >
+      virt-install \
+        --name {{ vm.name }} \
+        --os-variant ubuntu20.04 \
+        --vcpus {{ vm.cpu|default('1') }} \
+        --ram {{ vm.mem|default('4000') }} \
+        --network bridge={{ vm.bridge|default('virbr0') }} \
+        --graphics none \
+        --console pty,target_type=serial \
+        --import \
+        --disk "path=/virt/vms/{{ vm.name }}/{{ vm.name }}.img,size={{ vm.disk|default('10') }}" \
+        --cloud-init "meta-data=/virt/vms/{{ vm.name }}/cloud-init-meta-data.cfg,user-data=/virt/vms/{{ vm.name }}/cloud-init-user-data.cfg,network-config=/virt/vms/{{ vm.name }}/cloud-init-network.cfg" \
+        --autostart \
+        --noautoconsole
+  when: vm.name not in vm_list.list_vms
+  register: vm_create
+
+
+############################################################
+# Connect to VM via Ansible.
+############################################################
+
+
+- name: "{{ vm.name }} :: add VM to runtime Ansible inventory (proxied through hypervisor)"
+  ansible.builtin.add_host:
+    hostname: "{{ vm.net.ipv4 }}"
+    ansible_user: "{{ users[0].name }}"
+    # Proxy to VM through hypervisor with -J
+    # Auto-accept VM's SSH host key
+    ansible_ssh_common_args: "-J {{ ansible_user }}@{{ ansible_host }} -o StrictHostKeyChecking=accept-new"
+    # Custom variable to stash the friendly VM name in.
+    host_alias: "{{ vm.name }}"
+    groups:
+      - k3s_node_vms
+  changed_when: false
+
+
+- block:
+    - name: "{{ vm.name }} :: wait for SSH connection to come up {{ vm.net.ipv4 }}"
+      delegate_to: "{{ vm.net.ipv4 }}"
+      ansible.builtin.wait_for_connection:
+        timeout: 300
+  rescue:
+    - name: Rescue block (perform recovery)
+      debug:
+        msg:
+          - "Timeout might have been caused by old host key record."
+          - "Run this and try again:"
+          - "    ssh-keygen -f ~/.ssh/known_hosts -R {{ vm.net.ipv4 }}"

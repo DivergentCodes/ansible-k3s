@@ -1,0 +1,26 @@
+---
+
+- name: "Install MetalLB load balancer using Kustomize"
+  kubernetes.core.k8s:
+    kubeconfig: "{{ lookup('env','HOME') }}/.kube/config"
+    definition: "{{ lookup('kubernetes.core.kustomize', dir='cluster-apps/metallb') }}"
+  tags:
+    - metallb
+  register: metallb_install
+
+
+- name: "Pause for MetalLB to come up" 
+  pause:
+    seconds: 20
+  tags:
+    - metallb
+  when: metallb_install.changed
+
+
+- name: "Apply manifest for MetalLB IP address pool"
+  kubernetes.core.k8s:
+    kubeconfig: "{{ lookup('env','HOME') }}/.kube/config"
+    template: "../templates/metallb-ipaddress-pool.yaml.j2"
+    state: present
+  tags:
+    - metallb

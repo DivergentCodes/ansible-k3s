@@ -1,0 +1,21 @@
+---
+
+- name: Set up MetalLB
+  include_tasks: metallb.yaml
+  tags:
+    - metallb
+
+- name: Set up ArgoCD
+  include_tasks: argocd.yaml
+  tags:
+    - argocd
+
+- name: Set up ExternalSecrets secret
+  include_tasks: external-secrets.yaml
+  tags:
+    - externalsecrets
+
+- name: Set up CertManager secret
+  include_tasks: cert-manager.yaml
+  tags:
+    - certmanager
