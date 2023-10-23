@@ -1,0 +1,20 @@
+# Intentionally vulnerable applications, AKA "goats."
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: goats
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: "git@github.com:DivergentCodes/ansible-k3s"
+    targetRevision: main
+    path: cluster-apps/goats
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: goats
+  syncPolicy:
+    syncOptions:
+    - CreateNamespace=true
+    automated:
+      prune: true

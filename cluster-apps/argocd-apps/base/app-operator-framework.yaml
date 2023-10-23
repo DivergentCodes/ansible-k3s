@@ -1,0 +1,18 @@
+# https://github.com/operator-framework/operator-lifecycle-manager/blob/master/doc/install/install.md#manual-installation
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: operator-framework
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: "https://github.com/operator-framework/operator-lifecycle-manager"
+    targetRevision: v0.22.0
+    path: deploy/upstream/quickstart
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true

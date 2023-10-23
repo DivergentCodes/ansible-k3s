@@ -1,0 +1,14 @@
+# Github repo with deploy key to bootstrap ArgoCD
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cluster-git-repo
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+    deployed_by: ansible
+stringData:
+  type: git
+  url: {{ k3s.argocd_bootstrap.git.repo_remote }}
+data:
+  sshPrivateKey: {{ argocd_deploy_key }}

@@ -1,0 +1,20 @@
+---
+- block:
+
+  - name: "{{ ansible_facts.nodename }} :: node :: set k3s node token"
+    set_fact:
+      k3s_node_token: "{{ hostvars[hostvars.vm_host_server.k3s.master.ipv4]['ansible_facts']['k3s_node_token'] }}"
+      cacheable: yes
+
+  - name: "{{ ansible_facts.nodename }} :: node :: check if k3s binary exists"
+    stat:
+      path: /usr/local/bin/k3s
+    register: k3s_binary
+
+  # https://rancher.com/docs/k3s/latest/en/installation/install-options/#options-for-installation-with-script
+  - name: "{{ ansible_facts.nodename }} :: node :: install k3s as node"
+    shell:
+      cmd: "curl -sfL https://get.k3s.io | K3S_URL='https://{{ hostvars.vm_host_server.k3s.master.ipv4 }}:6443' K3S_TOKEN='{{ ansible_facts.k3s_node_token }}' sh -"
+    when: not k3s_binary.stat.exists
+
+  when: hostvars.vm_host_server.k3s.master != ansible_facts.nodename

@@ -1,0 +1,18 @@
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: default
+  namespace: metallb-system
+spec:
+  # Addresses for MetalLB to hand out to LoadBalancer services.
+  addresses:
+  - {{ k3s.metallb.default_address_pool.ipv4 }}-{{ k3s.metallb.default_address_pool.ipv4 }}
+
+  # DO NOT DO THIS!!! YOU WILL LOSE CLUSTER NODE CONNECTIVITY!!!
+  # - 192.168.122.211-192.168.122.213
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: default
+  namespace: metallb-system

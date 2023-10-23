@@ -238,3 +238,4 @@ terraform.rc
 
 .DS_Store
 tags
+output/

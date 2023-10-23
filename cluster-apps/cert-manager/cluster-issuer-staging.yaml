@@ -1,0 +1,28 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+  namespace: cert-manager
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    # Optional field, but recommended. Unable to reference config.
+    # email: foo@localhost
+    privateKeySecretRef:
+      name: letsencrypt-staging
+    solvers:
+      # Which domains to match. Empty {} matches all domains.
+    - selector: {}
+      dns01:
+        route53:
+          region: us-east-1
+          # The hosted zone does not need to be explicit, becuase cert-manager
+          # is restricted to a single hosted zone. Unable to reference config.
+          # hostedZoneID: xxxxxxxx
+          accessKeyIDSecretRef:
+            name: aws-route53-credentials
+            key: access-key
+          secretAccessKeySecretRef:
+            name: aws-route53-credentials
+            key: secret-access-key
+

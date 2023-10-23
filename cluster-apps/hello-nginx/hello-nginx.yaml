@@ -1,0 +1,94 @@
+# Example hello nginx app in default namespace
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hello-nginx-content
+  labels:
+    app: hello-nginx
+data:
+  body: >
+    <html>
+      <style>
+        body {
+          background-color: #222;
+        }
+        p {
+          font-family:"Courier New";
+          font-size:xx-large;
+          color:#f22;
+          text-align:center;
+        }
+      </style>
+      <body>
+        <p>Hello Nginx!</p>
+      </body>
+    </html>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-nginx
+  labels:
+    app: hello-nginx
+spec:
+  selector:
+    matchLabels:
+      app: hello-nginx
+  template:
+    metadata:
+      labels:
+        app: hello-nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        ports:
+        - name: http
+          containerPort: 80
+        volumeMounts:
+          - name: hello-nginx
+            mountPath: /usr/share/nginx/html
+      volumes:
+      - name: hello-nginx
+        configMap:
+          name: hello-nginx-content
+          items:
+          - key: body
+            path: index.html
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-nginx
+  labels:
+    app: hello-nginx
+spec:
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+  selector:
+    app: hello-nginx
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: hello-nginx
+spec:
+  # The <namespace>/<name> of the gateway(s) to use.
+  # Allows using a centralized gateway, without requiring control over it.
+  gateways:
+  - istio-ingress/cluster-ingress-gateway
+  # The public domain to reach this service.
+  hosts:
+  - "hello-nginx.cluster.divergent.codes"
+  http:
+  - match:
+    # Every path for this domain will be routed to the service.
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: hello-nginx
+        port:
+          number: 80

@@ -1,0 +1,8 @@
+---
+############################################################
+
+- name: Set up K3s master
+  include_tasks: setup_master.yaml
+
+- name: Set up K3s nodes
+  include_tasks: setup_node.yaml

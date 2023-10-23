@@ -1,0 +1,9 @@
+---
+- name: Setup KVM hypervisor
+  include_tasks: setup.yaml
+
+- name: Configure virtual machines
+  include_tasks: vm.yaml
+  loop: "{{ virtual_machines }}"
+  loop_control:
+    loop_var: vm

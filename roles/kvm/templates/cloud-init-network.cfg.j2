@@ -1,0 +1,14 @@
+#cloud-config
+version: 2
+ethernets:
+  {{ vm.iface }}:
+    dhcp4: false
+    dhcp6: false
+    addresses:
+      - {{ vm.net.ipv4 }}/24
+    gateway4: {{ vm.net.gateway4 }}
+    nameservers:
+      addresses:
+{% for host in vm.net.dns %}
+        - {{ host }}
+{% endfor %}

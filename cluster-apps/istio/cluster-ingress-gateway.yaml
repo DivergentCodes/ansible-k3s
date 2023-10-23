@@ -1,0 +1,37 @@
+# Defines the centralized gateways that VirtualServices
+# in other namespaces can use to send and receive traffic.
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: cluster-ingress-gateway
+  # Run the gateway in the "istio-ingress" namespace.
+  # VirtualServices export to all namespaces by default, but will need
+  # to specify "istio-ingress/cluster-ingress-gateway" in their gateway definition.
+  namespace: istio-ingress
+spec:
+  selector:
+    istio: ingress  # use Istio default gateway implementation
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    tls:
+      # sends 301 redirect for http requests
+      httpsRedirect: true
+    hosts:
+    - "*/*"
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      # credentialName: wildcard-certificate-staging
+      credentialName: wildcard-certificate-production
+
+    # Which <namespace>/<virtualservice> are allowed to use this gateway.
+    # The VirtualService must specify this gateway with the 'gateways' key,
+    # as "istio-ingress/cluster-ingress-gateway".
+    hosts:
+    - "*/*"

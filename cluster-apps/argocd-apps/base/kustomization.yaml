@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: argocd
+resources:
+  - app-operator-framework.yaml
+  - app-external-secrets.yaml
+  - app-cert-manager.yaml
+  - app-istio.yaml
+  - app-hello-nginx.yaml
+  - app-goats.yaml

@@ -1,0 +1,40 @@
+---
+
+- name: "Install ArgoCD continuous deployment using Kustomize"
+  kubernetes.core.k8s:
+    kubeconfig: "{{ lookup('env','HOME') }}/.kube/config"
+    definition: "{{ lookup('kubernetes.core.kustomize', dir='cluster-apps/argocd/base') }}"
+  tags:
+    - argocd
+  register: argocd_install
+
+
+- name: "Get ArgoCD deploy key from {{ k3s.argocd_bootstrap.git.deploy_ssh_key_source }}"
+  set_fact:
+    argocd_deploy_key: "{{ lookup('aws_ssm', k3s.argocd_bootstrap.git.deploy_ssh_key_path) | b64encode }}"
+  tags:
+    - argocd
+
+
+- name: "Apply manifest for ArgoCD Git repository"
+  kubernetes.core.k8s:
+    kubeconfig: "{{ lookup('env','HOME') }}/.kube/config"
+    template: "../templates/argocd-git-repo.yaml.j2"
+    state: present
+  tags:
+    - argocd
+  register: argocd_git_repo
+
+- name: "Pause for ArgoCD to become aware of the Git repository" 
+  pause:
+    seconds: 20
+  tags:
+    - argocd
+  when: argocd_git_repo.changed
+
+- name: "Bootstrap ArgoCD apps"
+  kubernetes.core.k8s:
+    kubeconfig: "{{ lookup('env','HOME') }}/.kube/config"
+    definition: "{{ lookup('kubernetes.core.kustomize', dir='cluster-apps/argocd-apps/base') }}"
+  tags:
+    - argocd

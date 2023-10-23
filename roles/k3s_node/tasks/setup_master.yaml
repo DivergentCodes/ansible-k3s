@@ -1,0 +1,97 @@
+---
+- block:
+
+  - name: "{{ ansible_facts.nodename }} :: master :: check if k3s binary exists"
+    stat:
+      path: /usr/local/bin/k3s
+    register: k3s_binary
+
+  # https://rancher.com/docs/k3s/latest/en/installation/install-options/#options-for-installation-with-script
+  - name: "{{ ansible_facts.nodename }} :: master :: install k3s as master"
+    shell:
+      cmd: curl -sfL https://get.k3s.io | sh -
+    when: not k3s_binary.stat.exists
+
+  - name: "{{ ansible_facts.nodename }} :: master :: slurp k3s node token value"
+    slurp:
+      src: "/var/lib/rancher/k3s/server/node-token"
+    register: slurped_node_token
+
+  - name: "{{ ansible_facts.nodename }} :: master :: set k3s node token"
+    set_fact:
+      k3s_node_token: "{{ slurped_node_token.content | b64decode | regex_replace('\n') }}"
+      cacheable: yes
+
+  - name: "{{ ansible_facts.nodename }} :: master :: apply k3s configuration"
+    template:
+      src: "../templates/config.yaml"
+      dest: "/etc/rancher/k3s/config.yaml"
+      owner: root
+      group: root
+      mode: 644
+    register: k3s_config
+
+  - name: "{{ ansible_facts.nodename }} :: master :: restart k3s service"
+    ansible.builtin.systemd:
+      name: k3s
+      state: restarted
+      daemon_reload: yes
+    when: k3s_config.changed
+
+  - name: "{{ ansible_facts.nodename }} :: master :: save kubeconfig file locally"
+    ansible.builtin.fetch:
+      src: "/etc/rancher/k3s/k3s.yaml"
+      dest: output/kubeconfig.yaml
+      flat: yes
+
+  - name: "localhost :: point kubeconfig file to VM server IP"
+    delegate_to: localhost
+    ansible.builtin.lineinfile:
+      path: output/kubeconfig.yaml
+      search_string: "127.0.0.1"
+      line: "    server: https://{{ hostvars.vm_host_server.ansible_host }}:6443"
+
+  - name: "localhost :: create $HOME/.kube if it does not exist"
+    delegate_to: localhost
+    file:
+      path: "{{ lookup('env','HOME') }}/.kube"
+      state: directory
+    register: kubeconfig_path
+
+  - name: "localhost :: get hash for downloaded kubeconfig"
+    delegate_to: localhost
+    stat:
+      path: output/kubeconfig.yaml
+    register: downloaded_kubeconfig_file
+
+  - name: "localhost :: check if $HOME/.kube/config exists"
+    delegate_to: localhost
+    stat:
+      path: "{{ lookup('env','HOME') }}/.kube/config"
+    register: existing_kubeconfig_file
+
+  - name: "localhost :: copy downloaded kubeconfig to $HOME/.kube/config"
+    delegate_to: localhost
+    copy:
+      src: "output/kubeconfig.yaml"
+      dest: "{{ lookup('env','HOME') }}/.kube/config"
+      backup: yes
+    register: kubeconfig_file
+    when: (not existing_kubeconfig_file.stat.exists) or
+          (existing_kubeconfig_file.stat.checksum != downloaded_kubeconfig_file.stat.checksum)
+
+  - name: "localhost :: check latest stable version of kubectl"
+    delegate_to: localhost
+    set_fact:
+      kubectl_latest_version: "{{ lookup('ansible.builtin.url', 'https://dl.k8s.io/release/stable.txt') }}"
+
+  - name: "localhost :: download latest kubectl"
+    delegate_to: localhost
+    get_url:
+      url: "https://dl.k8s.io/release/{{ kubectl_latest_version }}/bin/linux/{{ [ansible_architecture] | map('extract', deb_architecture) | first }}/kubectl"
+      dest: /usr/local/bin/kubectl
+      checksum: "sha256:{{ lookup('ansible.builtin.url', 'https://dl.k8s.io/'+kubectl_latest_version+'/bin/linux/amd64/kubectl.sha256') }}"
+      mode: 755
+      owner: root
+
+  when: hostvars.vm_host_server.k3s.master.hostname == ansible_facts.nodename
